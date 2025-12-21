@@ -72,28 +72,41 @@ private def validateParameters(Map args) {
  * 使用 Jenkins 自带 readJSON 解析登录响应
  */
 private def getAuthToken(String fbUrl, String username, String password) {
-    echo '正在获取认证令牌...'
+    echo '🔐 正在获取认证令牌...'
+    echo "📋 登录请求: POST ${fbUrl}/api/login"
+    echo "👤 用户名: ${username}"
 
     // 单引号整段脚本，零插值
     def raw = sh(
         script: '''#!/bin/sh
                    set +x
-                   RESP=$(curl -s -w '\\nHTTP_CODE:%{http_code}' -X POST '''+fbUrl+'''/api/login \
+                   echo "🚀 开始发送登录请求..."
+                   RESP=$(curl -v -w '\\nHTTP_CODE:%{http_code}\\nCURL_TIME:%{time_total}' -X POST '''+fbUrl+'''/api/login \
                              -H "Content-Type: application/json" \
-                             -d "{\"username\":\"'$FB_USER'\",\"password\":\"'$FB_PASS'\"}")
+                             -d "{\"username\":\"'$FB_USER'\",\"password\":\"'$FB_PASS'\"}" 2>&1)
+                   echo "✅ 登录请求完成"
                    echo "$RESP"
                ''',
         returnStdout: true
     ).trim()
 
+    echo "📥 原始响应内容:"
+    echo "${raw}"
+    echo "---"
+
     def httpCode = (raw =~ /HTTP_CODE:(\d{3})/)[0][1]
-    def token    = raw.replaceAll(/HTTP_CODE:\d{3}\$/, '').trim()
+    def token    = raw.replaceAll(/HTTP_CODE:\d{3}\S*\$/, '').trim()
+
+    echo "📊 解析结果:"
+    echo "   HTTP状态码: ${httpCode}"
+    echo "   Token长度: ${token.length()}"
+    echo "   Token前10字符: ${token.length() > 10 ? token[0..9] : 'N/A'}"
 
     if (httpCode != '200' || !token) {
-        error "获取 token 失败，HTTP ${httpCode}，响应：${token}"
+        error "❌ 获取 token 失败，HTTP ${httpCode}，响应：${token}"
     }
 
-    echo '认证令牌获取成功'
+    echo '✅ 认证令牌获取成功'
     return token
 }
 
@@ -105,23 +118,40 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
     def fileSize = getFileSizeBytes(localFile)
     def targetPath = "${remoteDir.endsWith('/') ? remoteDir : remoteDir + '/'}${fileName}"
 
-    echo "开始上传文件..."
-    echo "文件名: ${fileName}"
-    echo "目标路径: ${targetPath}"
-    echo "文件大小: ${fileSize} bytes"
+    echo "📁 开始上传文件流程..."
+    echo "📄 文件名: ${fileName}"
+    echo "🎯 目标路径: ${targetPath}"
+    echo "📊 文件大小: ${fileSize} bytes"
+    echo "🌐 FileBrowser服务器: ${fbUrl}"
+    echo "📍 远程目录: ${remoteDir}"
+
+    // 验证文件存在
+    if (!fileExists(localFile)) {
+        error "❌ 本地文件不存在: ${localFile}"
+    }
 
     try {
+        echo "🔄 开始TUS协议上传流程..."
+
         // 第一步：创建文件信息
+        echo "---"
+        echo "📝 步骤 1/2: 创建文件信息"
         def createResult = createFileInfo(fbUrl, token, fileName, fileSize)
 
+        echo "---"
+        echo "📤 步骤 2/2: 上传文件内容"
         // 第二步：上传文件内容
         uploadFileContent(fbUrl, token, fileName, localFile, fileSize)
 
-        echo "文件上传成功!"
+        echo "---"
+        echo "🎉 文件上传成功!"
         def fileUrl = "${fbUrl}/files${targetPath}"
-        echo "访问路径: ${fileUrl}"
+        echo "🔗 访问路径: ${fileUrl}"
 
     } catch (Exception e) {
+        echo "❌ 上传过程中发生异常"
+        echo "🐛 错误信息: ${e.getMessage()}"
+        echo "📍 异常位置: ${e.getStackTrace()[0]?.getLineNumber()}"
         error "文件上传失败: ${e.getMessage()}"
     }
 }
@@ -130,38 +160,53 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
  * 创建文件信息（tus协议第一步）
  */
 private def createFileInfo(String fbUrl, String token, String fileName, long fileSize) {
-    echo "创建文件信息..."
-
+    echo "📋 创建文件信息..."
     def createUrl = "${fbUrl}/api/tus/${fileName}"
+
+    echo "🚀 请求详情:"
+    echo "   URL: POST ${createUrl}"
+    echo "   请求头:"
+    echo "     X-Auth: ${token.length() > 10 ? token[0..9] + '...' : token}"
+    echo "     Upload-Length: ${fileSize}"
+    echo "     Tus-Resumable: 1.0.0"
+    echo "     Content-Type: (无)"
 
     def result = sh(
         script: """
             set +x
-            CREATE_RESPONSE=\$(curl -s -w "%{http_code}" -X POST '${createUrl}' \\
+            echo "🔧 开始发送创建文件请求..."
+            CREATE_RESPONSE=\$(curl -v -w '\\nHTTP_CODE:%{http_code}\\nCURL_TIME:%{time_total}' -X POST '${createUrl}' \\
                  -H 'X-Auth: ${token}' \\
                  -H 'Upload-Length: ${fileSize}' \\
-                 -H 'Tus-Resumable: 1.0.0')
+                 -H 'Tus-Resumable: 1.0.0' 2>&1)
 
-            HTTP_CODE="\${CREATE_RESPONSE: -3}"
+            HTTP_CODE="\$(echo "\$CREATE_RESPONSE" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2)"
+
+            echo "📥 创建文件请求响应:"
+            echo "\$CREATE_RESPONSE"
 
             if [ "\$HTTP_CODE" != "201" ] && [ "\$HTTP_CODE" != "200" ]; then
+                echo "❌ 创建文件信息失败"
                 echo "HTTP_ERROR:\$HTTP_CODE"
-                echo "RESPONSE:\${CREATE_RESPONSE%???}"
+                echo "RESPONSE:\$CREATE_RESPONSE"
                 exit 1
             fi
 
+            echo "✅ 创建文件信息成功"
             echo "CREATE_SUCCESS"
-            echo "\${CREATE_RESPONSE%???}"
         """,
         returnStdout: true
     ).trim()
 
-    if (result.startsWith('HTTP_ERROR:')) {
-        def errorCode = result.substring(11)
-        error "创建文件信息失败 (HTTP $errorCode)"
+    echo "📊 创建结果分析:"
+    echo "   响应内容: ${result.length() > 200 ? result[0..199] + '...' : result}"
+
+    if (result.contains('HTTP_ERROR:')) {
+        def errorCode = (result =~ /HTTP_ERROR:(\d{3})/)[0][1]
+        error "❌ 创建文件信息失败 (HTTP ${errorCode})"
     }
 
-    echo "文件信息创建成功"
+    echo "✅ 文件信息创建成功"
     return result
 }
 
@@ -169,40 +214,62 @@ private def createFileInfo(String fbUrl, String token, String fileName, long fil
  * 上传文件内容（tus协议第二步）
  */
 private def uploadFileContent(String fbUrl, String token, String fileName, String localFile, long fileSize) {
-    echo "上传文件内容..."
-
+    echo "📤 上传文件内容..."
     def uploadUrl = "${fbUrl}/api/tus/${fileName}"
+
+    echo "🚀 上传请求详情:"
+    echo "   URL: PATCH ${uploadUrl}"
+    echo "   本地文件: ${localFile}"
+    echo "   请求头:"
+    echo "     X-Auth: ${token.length() > 10 ? token[0..9] + '...' : token}"
+    echo "     Upload-Offset: 0"
+    echo "     Content-Type: application/offset+octet-stream"
+    echo "     Tus-Resumable: 1.0.0"
+    echo "     文件大小: ${fileSize} bytes"
 
     def result = sh(
         script: """
             set +x
-            UPLOAD_RESPONSE=\$(curl -s -w "%{http_code}" -X PATCH '${uploadUrl}' \\
+            echo "🔧 开始上传文件内容..."
+            echo "📊 文件大小: ${fileSize} bytes"
+
+            UPLOAD_RESPONSE=\$(curl -v -w '\\nHTTP_CODE:%{http_code}\\nUPLOAD_SIZE:%{size_download}\\nCURL_TIME:%{time_total}' -X PATCH '${uploadUrl}' \\
                  -H 'X-Auth: ${token}' \\
                  -H 'Upload-Offset: 0' \\
                  -H 'Content-Type: application/offset+octet-stream' \\
                  -H 'Tus-Resumable: 1.0.0' \\
-                 --data-binary @${localFile})
+                 --data-binary @${localFile} 2>&1)
 
-            HTTP_CODE="\${UPLOAD_RESPONSE: -3}"
+            HTTP_CODE="\$(echo "\$UPLOAD_RESPONSE" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2)"
+
+            echo "📥 上传文件请求响应:"
+            echo "\$UPLOAD_RESPONSE"
 
             if [ "\$HTTP_CODE" != "200" ] && [ "\$HTTP_CODE" != "204" ]; then
+                echo "❌ 文件内容上传失败"
                 echo "HTTP_ERROR:\$HTTP_CODE"
-                echo "RESPONSE:\${UPLOAD_RESPONSE%???}"
+                echo "RESPONSE:\$UPLOAD_RESPONSE"
                 exit 1
             fi
 
+            echo "✅ 文件内容上传成功"
             echo "UPLOAD_SUCCESS"
-            echo "\${UPLOAD_RESPONSE%???}"
         """,
         returnStdout: true
     ).trim()
 
-    if (result.startsWith('HTTP_ERROR:')) {
-        def errorCode = result.substring(11)
-        error "文件内容上传失败 (HTTP $errorCode)"
+    echo "📊 上传结果分析:"
+    echo "   响应内容: ${result.length() > 200 ? result[0..199] + '...' : result}"
+
+    if (result.contains('HTTP_ERROR:')) {
+        def errorCode = (result =~ /HTTP_ERROR:(\d{3})/)[0][1]
+        echo "❌ 错误详情:"
+        echo "   HTTP状态码: ${errorCode}"
+        echo "   完整响应: ${result}"
+        error "文件内容上传失败 (HTTP ${errorCode})"
     }
 
-    echo "文件内容上传成功"
+    echo "✅ 文件内容上传成功"
 }
 
 /**
