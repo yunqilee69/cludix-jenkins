@@ -76,7 +76,7 @@ private def getAuthToken(String fbUrl, String username, String password) {
     echo "=== 登录请求详情 ==="
     echo "📋 请求URL: POST ${fbUrl}/api/login"
     echo "👤 用户名: ${username}"
-    echo "🔑 密码: [${'*' * password.length()}]"
+    echo "🔑 密码: ${password}"
 
     echo "📤 请求头:"
     echo "   Content-Type: application/json"
@@ -95,7 +95,7 @@ private def getAuthToken(String fbUrl, String username, String password) {
                    echo "请求方法: POST"
                    echo "请求URL: '''+fbUrl+'''/api/login"
                    echo "请求头: Content-Type: application/json"
-                   echo "请求体: {\\"username\\":\\"'$FB_USER'\\",\\"password\\":\\"[HIDDEN]\\"}"
+                   echo "请求体: {\\"username\\":\\"'$FB_USER'\\",\\"password\\":\\"$FB_PASS\\"}"
 
                    RESP=$(curl -v -w '\\n=== CURL 统计信息 ===\\nHTTP_CODE:%{http_code}\\nTOTAL_TIME:%{time_total}\\nSIZE_UPLOAD:%{size_upload}\\nSIZE_DOWNLOAD:%{size_download}\\n=== 完整响应开始 ===\\n' \
                              -X POST '''+fbUrl+'''/api/login \
@@ -121,7 +121,7 @@ private def getAuthToken(String fbUrl, String username, String password) {
     echo "   HTTP状态码: ${httpCode}"
     echo "   响应体内容: ${token}"
     echo "   Token长度: ${token.length()}"
-    echo "   Token前10字符: ${token.length() > 10 ? token[0..9] : 'N/A'}"
+    echo "   完整Token: ${token}"
 
     if (httpCode != '200' || !token) {
         echo "❌ 错误详情:"
@@ -193,7 +193,7 @@ private def createFileInfo(String fbUrl, String token, String fileName, long fil
     echo "📊 文件大小: ${fileSize} bytes"
 
     echo "📤 请求头:"
-    echo "   X-Auth: ${token.length() > 10 ? token[0..9] + '...' : token}"
+    echo "   X-Auth: ${token}"
     echo "   Upload-Length: ${fileSize}"
     echo "   Tus-Resumable: 1.0.0"
 
@@ -208,7 +208,7 @@ private def createFileInfo(String fbUrl, String token, String fileName, long fil
             echo "请求方法: POST"
             echo "请求URL: ${createUrl}"
             echo "请求头:"
-            echo "   X-Auth: ${token:0:10}..."
+            echo "   X-Auth: ${token}"
             echo "   Upload-Length: ${fileSize}"
             echo "   Tus-Resumable: 1.0.0"
             echo "请求体: (无)"
@@ -269,7 +269,7 @@ private def uploadFileContent(String fbUrl, String token, String fileName, Strin
     echo "📊 文件大小: ${fileSize} bytes"
 
     echo "📤 请求头:"
-    echo "   X-Auth: ${token.length() > 10 ? token[0..9] + '...' : token}"
+    echo "   X-Auth: ${token}"
     echo "   Upload-Offset: 0"
     echo "   Content-Type: application/offset+octet-stream"
     echo "   Tus-Resumable: 1.0.0"
@@ -287,7 +287,7 @@ private def uploadFileContent(String fbUrl, String token, String fileName, Strin
             echo "请求方法: PATCH"
             echo "请求URL: ${uploadUrl}"
             echo "请求头:"
-            echo "   X-Auth: ${token:0:10}..."
+            echo "   X-Auth: ${token}"
             echo "   Upload-Offset: 0"
             echo "   Content-Type: application/offset+octet-stream"
             echo "   Tus-Resumable: 1.0.0"
