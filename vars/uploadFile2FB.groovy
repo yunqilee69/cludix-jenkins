@@ -1,6 +1,11 @@
 /**
  * 上传文件到 FileBrowser 服务器的 Jenkins 共享库函数
  *
+ * 使用说明：
+ * 此脚本需要安装 Pipeline Utility Steps 插件才能正常使用。
+ * 该插件提供了 readJSON 函数用于解析 JSON 响应。
+ * 请在 Jenkins 管理界面中确保已安装 Pipeline Utility Steps 插件。
+ *
  * @param args Map 包含以下参数:
  *   - url: FileBrowser 服务器地址 (必填)
  *   - file: 本地文件路径 (必填)
@@ -71,23 +76,19 @@ private def validateParameters(Map args) {
  */
 private def getAuthToken(String fbUrl, String username, String password) {
     echo '正在获取认证令牌...'
-
-    // 1. 发起登录请求
+    // 单引号 + 环境变量，零插值
     def resp = sh(
-        script: """curl -s -X POST ${fbUrl}/api/login \
-                   -H 'Content-Type: application/json' \
-                   -d '{"username":"'${username}'","password":"'${password}'"}'""",
+        script: '''#!/bin/sh
+                   curl -s -X POST '''+fbUrl+'''/api/login \
+                        -H "Content-Type: application/json" \
+                        -d "{\"username\":\"'$FB_USER'\",\"password\":\"'$FB_PASS'\"}"
+               ''',
         returnStdout: true
     ).trim()
 
-    // 2. 解析 JSON
     def json = readJSON text: resp
     def token = json.token ?: ''
-
-    if (!token) {
-        error "FileBrowser 登录失败：响应中无 token"
-    }
-
+    if (!token) error 'FileBrowser 登录失败：响应中无 token'
     echo '认证令牌获取成功'
     return token
 }
