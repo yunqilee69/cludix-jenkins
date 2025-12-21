@@ -66,33 +66,28 @@ private def validateParameters(Map args) {
     }
 }
 
+/**
+ * 使用 Jenkins 自带 readJSON 解析登录响应
+ */
 private def getAuthToken(String fbUrl, String username, String password) {
     echo '正在获取认证令牌...'
-    // 用单引号，避免 Groovy 插值；变量通过 env 传给 sh
-    def token = sh(
-        script: '''#!/bin/sh
-                   set +x
-                   # POSIX 兼容：取最后 3 位
-                   RESPONSE=$(curl -s -w '%{http_code}' -X POST '''+fbUrl+'''/api/login \
-                        -H 'Content-Type: application/json' \
-                        -d '{"username":"'$FB_USER'","password":"'$FB_PASS'"}')
-                   HTTP_CODE=$(echo "$RESPONSE" | tail -c 4)
-                   BODY=$(echo "$RESPONSE" | head -c -3)
 
-                   if [ "$HTTP_CODE" != "200" ]; then
-                       echo "HTTP_ERROR:$HTTP_CODE"
-                       exit 1
-                   fi
-
-                   echo "$BODY" | jq -r '.token // empty'
-               ''',
+    // 1. 发起登录请求
+    def resp = sh(
+        script: """curl -s -X POST ${fbUrl}/api/login \
+                   -H 'Content-Type: application/json' \
+                   -d '{"username":"'${username}'","password":"'${password}'"}'""",
         returnStdout: true
     ).trim()
 
-    if (token == 'null' || !token || token.startsWith('HTTP_ERROR:')) {
-        def errorCode = token.startsWith('HTTP_ERROR:') ? token.substring(11) : 'UNKNOWN'
-        error "FileBrowser 登录失败 (HTTP $errorCode)"
+    // 2. 解析 JSON
+    def json = readJSON text: resp
+    def token = json.token ?: ''
+
+    if (!token) {
+        error "FileBrowser 登录失败：响应中无 token"
     }
+
     echo '认证令牌获取成功'
     return token
 }
