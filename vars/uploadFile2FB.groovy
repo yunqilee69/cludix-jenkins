@@ -66,28 +66,26 @@ private def validateParameters(Map args) {
     }
 }
 
-/**
- * 获取认证令牌
- */
 private def getAuthToken(String fbUrl, String username, String password) {
-    echo "正在获取认证令牌..."
-
+    echo '正在获取认证令牌...'
+    // 用单引号，避免 Groovy 插值；变量通过 env 传给 sh
     def token = sh(
-        script: """
-            set +x
-            RESPONSE=\$(curl -s -w "%{http_code}" -X POST ${fbUrl}/api/login \\
-                   -H 'Content-Type: application/json' \\
-                   -d '{"username":"${username}","password":"${password}"')
-            HTTP_CODE="\${RESPONSE: -3}"
-            BODY="\${RESPONSE%???}"
+        script: '''#!/bin/sh
+                   set +x
+                   # POSIX 兼容：取最后 3 位
+                   RESPONSE=$(curl -s -w '%{http_code}' -X POST '''+fbUrl+'''/api/login \
+                        -H 'Content-Type: application/json' \
+                        -d '{"username":"'$FB_USER'","password":"'$FB_PASS'"}')
+                   HTTP_CODE=$(echo "$RESPONSE" | tail -c 4)
+                   BODY=$(echo "$RESPONSE" | head -c -3)
 
-            if [ "\$HTTP_CODE" != "200" ]; then
-                echo "HTTP_ERROR:\$HTTP_CODE"
-                exit 1
-            fi
+                   if [ "$HTTP_CODE" != "200" ]; then
+                       echo "HTTP_ERROR:$HTTP_CODE"
+                       exit 1
+                   fi
 
-            echo "\$BODY" | jq -r '.token // empty'
-        """,
+                   echo "$BODY" | jq -r '.token // empty'
+               ''',
         returnStdout: true
     ).trim()
 
@@ -95,8 +93,7 @@ private def getAuthToken(String fbUrl, String username, String password) {
         def errorCode = token.startsWith('HTTP_ERROR:') ? token.substring(11) : 'UNKNOWN'
         error "FileBrowser 登录失败 (HTTP $errorCode)"
     }
-
-    echo "认证令牌获取成功"
+    echo '认证令牌获取成功'
     return token
 }
 
