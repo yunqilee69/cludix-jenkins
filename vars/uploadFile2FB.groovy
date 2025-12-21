@@ -77,38 +77,27 @@ private def validateParameters(Map args) {
 private def getAuthToken(String fbUrl, String username, String password) {
     echo '正在获取认证令牌...'
 
-    // 1. 先把完整响应抓出来（不管对错）
+    // 单引号整段脚本，零插值
     def raw = sh(
-        script: """#!/bin/sh
+        script: '''#!/bin/sh
                    set +x
-                   RESP=\$(curl -s -w '\\nHTTP_CODE:%{http_code}' -X POST ${fbUrl}/api/login \
-                             -H 'Content-Type: application/json' \
-                             -d '{"username":"'${FB_USER}'","password":"'${FB_PASS}'"}')
-                   echo "\$RESP"      # 把 body + HTTP_CODE 一起打印
-               """,
+                   RESP=$(curl -s -w '\\nHTTP_CODE:%{http_code}' -X POST '''+fbUrl+'''/api/login \
+                             -H "Content-Type: application/json" \
+                             -d "{\"username\":\"'$FB_USER'\",\"password\":\"'$FB_PASS'\"}")
+                   echo "$RESP"
+               ''',
         returnStdout: true
     ).trim()
 
-    echo "原始响应>> ${raw}"          // 现在能在控制台看到到底返回了什么
-
-    // 2. 分离 body 和状态码
     def httpCode = (raw =~ /HTTP_CODE:(\d{3})/)[0][1]
-    def body     = raw.replaceAll(/HTTP_CODE:\d{3}\$/, '').trim()
+    def token    = raw.replaceAll(/HTTP_CODE:\d{3}\$/, '').trim()
 
-    if (httpCode != '200') {
-        error "登录接口返回 HTTP ${httpCode}，响应体：${body}"
+    if (httpCode != '200' || !token) {
+        error "获取 token 失败，HTTP ${httpCode}，响应：${token}"
     }
 
-    // 3. 再尝试解析 JSON
-    try {
-        def json  = readJSON text: body
-        def token = json.token ?: ''
-        if (!token) error 'JSON 中无 token 字段'
-        echo "认证令牌获取成功"
-        return token
-    } catch (Exception e) {
-        error "解析 JSON 失败：${e.message}，原始响应：${body}"
-    }
+    echo '认证令牌获取成功'
+    return token
 }
 
 /**
