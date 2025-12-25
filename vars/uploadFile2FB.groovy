@@ -121,15 +121,13 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
         def uploadUrl = "${fbUrl}/api/resources${targetPath}?override=true"
 
         echo "📤 上传到: ${uploadUrl}"
-        echo "🔑 Token: ${token}"
 
         def result = sh(
             script: """#!/bin/sh
                        set +x
-                       HTTP_CODE=\$(curl -s -w "%{http_code}" -X POST '${uploadUrl}' \\
-                            -H 'X-Auth: ${token}' \\
-                            -H 'Content-Type: application/octet-stream' \\
-                            --data-binary @${localFile})
+                       HTTP_CODE=\$(curl -k -s -w "%{http_code}" -X POST '${uploadUrl}' \\
+                            -H 'x-auth: ${token}' \\
+                            -F 'file=@${localFile}')
                        echo "\$HTTP_CODE"
                    """,
             returnStdout: true
