@@ -6,22 +6,19 @@
 
 - ✅ **安全认证**: 通过 Jenkins 凭据管理系统安全处理用户名和密码
 - ✅ **自动覆盖**: 总是覆盖已存在的文件
-- ✅ **目录管理**: 自动创建远程目录（如果不存在）
 - ✅ **参数验证**: 完整的输入参数验证和错误处理
 - ✅ **详细日志**: 提供清晰的上传进度和状态反馈
-- ✅ **文件信息**: 显示文件大小等详细信息
 - ✅ **错误处理**: 完善的异常捕获和错误报告
+- ✅ **安全性**: 敏感信息（密码、token）不会输出到日志
 
 ## 安装要求
 
 ### Jenkins 插件依赖
-- **Pipeline Utility Steps**: 用于文件操作
 - **Credentials Binding Plugin**: 用于凭据管理
 - **Pipeline**: 用于 Jenkins 流水线支持
 
 ### 系统工具依赖
 - `curl`: 用于 HTTP 请求
-- `jq`: 用于 JSON 解析
 
 ## 使用方法
 
@@ -140,18 +137,15 @@ pipeline {
 
 执行成功时的日志输出：
 ```
-📤 准备上传文件: target/app.jar -> /deployments
-🔗 FileBrowser 服务器: https://files.company.com
+准备上传文件: target/app.jar -> /deployments
+FileBrowser 服务器: https://files.company.com
 🔐 正在获取认证令牌...
 ✅ 认证令牌获取成功
-📁 检查远程目录: /deployments
-✅ 远程目录已就绪
-📤 开始上传文件...
-📄 文件名: app.jar
-📏 文件大小: 15MB
-📁 访问路径: https://files.company.com/files/deployments/app.jar
-✅ 文件上传完成
+📁 开始上传文件: app.jar
+📤 上传到: https://files.company.com/api/resources/deployments/app.jar?override=true
 ✅ 文件上传成功!
+🔗 访问路径: https://files.company.com/files/deployments/app.jar
+文件上传成功!
 ```
 
 ## 错误处理
@@ -187,14 +181,14 @@ pipeline {
 
 1. **凭据安全**:
    - 使用 Jenkins 凭据管理系统，不要在代码中硬编码用户名密码
-   - 凭据在日志中会被自动隐藏（`set +x`）
+   - 所有敏感信息（密码、token）都不会输出到日志中
 
 2. **路径安全**:
    - 验证 URL 格式，防止注入攻击
    - 文件路径通过 Jenkins 内置安全机制处理
 
 3. **网络安全**:
-   - 支持 HTTPS 协议
+   - 支持 HTTPS 协议，支持 `-k` 参数跳过 SSL 证书验证
    - 生产环境建议使用 HTTPS
 
 ## 故障排除
@@ -211,15 +205,10 @@ pipeline {
 - 验证 Jenkins 凭据配置是否正确
 - 确认用户名密码是否正确
 
-### 问题: 远程目录创建失败
+### 问题: 证书验证失败
 **解决方案**:
-- 检查用户是否有创建目录的权限
-- 验证远程目录路径格式是否正确
-
-## 版本历史
-
-- **v2.0**: 完全重写，增加详细日志、错误处理和参数验证
-- **v1.0**: 基础文件上传功能
+- 代码已使用 `-k` 参数跳过 SSL 证书验证
+- 如需严格证书验证，可修改代码移除 `-k` 参数
 
 ## 贡献
 

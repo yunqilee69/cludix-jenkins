@@ -84,8 +84,10 @@ private def getAuthToken(String fbUrl, String username, String password) {
         returnStdout: true
     ).trim()
 
-    def httpCode = raw.takeRight(3)
-    def response = raw[0..-4]
+    // 从响应中提取HTTP状态码（最后3个字符）
+    def httpCode = raw.substring(raw.length() - 3)
+    // 响应内容是HTTP状态码之前的部分
+    def response = raw.substring(0, raw.length() - 3)
 
     if (httpCode != '200') {
         error "❌ 登录失败 (HTTP ${httpCode})"
@@ -126,7 +128,7 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
             returnStdout: true
         ).trim()
 
-        def httpCode = result[-3..-1]
+        def httpCode = result.substring(result.length() - 3)
 
         if (httpCode in ['200', '201', '204']) {
             echo "✅ 文件上传成功!"
