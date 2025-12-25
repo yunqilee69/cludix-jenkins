@@ -73,8 +73,6 @@ private def validateParameters(Map args) {
  */
 private def getAuthToken(String fbUrl, String username, String password) {
     echo "🔐 正在获取认证令牌..."
-    echo "📋 登录请求: POST ${fbUrl}/api/login"
-    echo "👤 用户名: ${username}"
 
     def raw = sh(
         script: """#!/bin/sh
@@ -86,19 +84,15 @@ private def getAuthToken(String fbUrl, String username, String password) {
         returnStdout: true
     ).trim()
 
-    def httpCode = raw[-3..-1]
+    def httpCode = raw.takeRight(3)
     def response = raw[0..-4]
 
-    echo "📊 登录响应:"
-    echo "   HTTP状态码: ${httpCode}"
-    echo "   响应内容: ${response}"
-
     if (httpCode != '200') {
-        error "❌ 登录失败 (HTTP ${httpCode}): ${response}"
+        error "❌ 登录失败 (HTTP ${httpCode})"
     }
 
     echo "✅ 认证令牌获取成功"
-    return response.trim()
+    return response
 }
 
 /**
@@ -106,10 +100,9 @@ private def getAuthToken(String fbUrl, String username, String password) {
  */
 private def uploadFile(String fbUrl, String token, String localFile, String remoteDir) {
     def fileName = getFileName(localFile)
-    def fileSize = getFileSizeBytes(localFile)
     def targetPath = "${remoteDir.endsWith('/') ? remoteDir : remoteDir + '/'}${fileName}"
 
-    echo "📁 开始上传文件: ${fileName} (${fileSize} bytes)"
+    echo "📁 开始上传文件: ${fileName}"
 
     // 验证文件存在
     if (!fileExists(localFile)) {
@@ -153,53 +146,4 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
  */
 private def getFileName(String filePath) {
     return filePath.tokenize('/')[-1]
-}
-
-/**
- * 获取文件大小（字节数）
- */
-private def getFileSizeBytes(String filePath) {
-    try {
-        def size = sh(
-            script: """
-                if command -v stat >/dev/null 2>&1; then
-                    if stat -c%s "${filePath}" >/dev/null 2>&1; then
-                        # Linux
-                        stat -c%s "${filePath}"
-                    else
-                        # macOS
-                        stat -f%z "${filePath}"
-                    fi
-                else
-                    echo "0"
-                    exit 0
-                fi
-            """,
-            returnStdout: true
-        ).trim()
-        return size.toLong()
-    } catch (Exception e) {
-        return 0L
-    }
-}
-
-/**
- * 获取文件大小（人类可读格式）
- */
-private def getFileSize(String filePath) {
-    try {
-        def sizeBytes = getFileSizeBytes(filePath)
-
-        if (sizeBytes < 1024) {
-            return "${sizeBytes}B"
-        } else if (sizeBytes < 1048576) {
-            return "${(sizeBytes / 1024)}KB"
-        } else if (sizeBytes < 1073741824) {
-            return "${(sizeBytes / 1048576)}MB"
-        } else {
-            return "${(sizeBytes / 1073741824)}GB"
-        }
-    } catch (Exception e) {
-        return "未知大小"
-    }
 }
