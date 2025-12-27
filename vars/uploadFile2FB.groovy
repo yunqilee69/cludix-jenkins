@@ -115,8 +115,6 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
         // 直接上传文件到 /api/resources 端点
         def uploadUrl = "${fbUrl}/api/resources${targetPath}?override=true"
 
-        echo "📤 上传到: ${uploadUrl}"
-
         def result = sh(
             script: """#!/bin/sh
                        set +x
@@ -132,8 +130,6 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
 
         if (httpCode in ['200', '201', '204']) {
             echo "✅ 文件上传成功!"
-            def fileUrl = "${fbUrl}/files${targetPath}"
-            echo "🔗 访问路径: ${fileUrl}"
         } else {
             error "❌ 文件上传失败 (HTTP ${httpCode})"
         }
