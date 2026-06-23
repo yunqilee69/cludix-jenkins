@@ -16,7 +16,7 @@ def call(Map args) {
     // 参数验证
     validateParameters(args)
 
-    def fbUrl     = args.url
+    def fbUrl     = args.url.replaceAll(/\/+$/, '')
     def localFile = args.file
     def remoteDir = args.remoteDir ?: '/'
     def credentialsId = args.credentialsId
