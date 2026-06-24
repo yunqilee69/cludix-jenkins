@@ -46,10 +46,16 @@ def upload(Map args) {
             // 获取认证令牌
             def token = getAuthToken(fbUrl, FB_USER, FB_PASS)
 
-            // 上传文件
-            uploadFile(fbUrl, token, localFile, remoteDir)
+            // 上传文件，返回 HTTP 状态码
+            def httpCode = uploadFile(fbUrl, token, localFile, remoteDir)
 
-            echo "文件上传成功!"
+            if (httpCode in ['200', '201', '204']) {
+                echo "文件上传成功! HTTP ${httpCode}"
+            } else {
+                echo "文件上传失败! HTTP ${httpCode}"
+            }
+
+            return httpCode.toInteger()
 
         } catch (Exception e) {
             error "文件上传失败: ${e.getMessage()}"
@@ -90,10 +96,16 @@ def delete(Map args) {
             // 获取认证令牌
             def token = getAuthToken(fbUrl, FB_USER, FB_PASS)
 
-            // 删除远程资源
-            deleteResource(fbUrl, token, remotePath)
+            // 删除远程资源，返回 HTTP 状态码
+            def httpCode = deleteResource(fbUrl, token, remotePath)
 
-            echo "远程资源删除成功!"
+            if (httpCode in ['200', '202', '204']) {
+                echo "远程资源删除成功! HTTP ${httpCode}"
+            } else {
+                echo "远程资源删除失败! HTTP ${httpCode}"
+            }
+
+            return httpCode.toInteger()
 
         } catch (Exception e) {
             error "远程资源删除失败: ${e.getMessage()}"
@@ -190,32 +202,28 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
         error "❌ 本地文件不存在: ${localFile}"
     }
 
-    try {
-        // 直接上传文件到 /api/resources 端点
-        def uploadUrl = "${fbUrl}/api/resources${targetPath}?override=true"
+    def uploadUrl = "${fbUrl}/api/resources${targetPath}?override=true"
 
-        def raw = sh(
-            script: """#!/bin/sh
-                       set +x
-                       curl -k -s -w "%{http_code}" -X POST '${uploadUrl}' \\
-                            -H 'x-auth: ${token}' \\
-                            -F 'file=@${localFile}'
-                   """,
-            returnStdout: true
-        ).trim()
+    def raw = sh(
+        script: """#!/bin/sh
+                   set +x
+                   curl -k -s -w "%{http_code}" -X POST '${uploadUrl}' \\
+                        -H 'x-auth: ${token}' \\
+                        -F 'file=@${localFile}'
+               """,
+        returnStdout: true
+    ).trim()
 
-        def httpCode = raw.substring(raw.length() - 3)
-        def response = raw.substring(0, raw.length() - 3)
+    def httpCode = raw.substring(raw.length() - 3)
+    def response = raw.substring(0, raw.length() - 3)
 
-        if (httpCode in ['200', '201', '204']) {
-            echo "✅ 文件上传成功! 响应: ${response}"
-        } else {
-            error "❌ 文件上传失败\n请求: POST ${uploadUrl}\nHTTP状态码: ${httpCode}\n响应: ${response}"
-        }
-
-    } catch (Exception e) {
-        error "❌ 文件上传失败: ${e.getMessage()}"
+    if (httpCode in ['200', '201', '204']) {
+        echo "✅ 文件上传成功! 响应: ${response}"
+    } else {
+        echo "❌ 文件上传失败\n请求: POST ${uploadUrl}\nHTTP状态码: ${httpCode}\n响应: ${response}"
     }
+
+    return httpCode
 }
 
 // ─── 删除实现 ───────────────────────────────────────────
@@ -228,30 +236,27 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
 private def deleteResource(String fbUrl, String token, String remotePath) {
     echo "🗑️ 开始删除远程资源: ${remotePath}"
 
-    try {
-        def deleteUrl = "${fbUrl}/api/resources${remotePath}"
+    def deleteUrl = "${fbUrl}/api/resources${remotePath}"
 
-        def raw = sh(
-            script: """#!/bin/sh
-                       set +x
-                       curl -k -s -w "%{http_code}" -X DELETE '${deleteUrl}' \\
-                            -H 'x-auth: ${token}'
-                   """,
-            returnStdout: true
-        ).trim()
+    def raw = sh(
+        script: """#!/bin/sh
+                   set +x
+                   curl -k -s -w "%{http_code}" -X DELETE '${deleteUrl}' \\
+                        -H 'x-auth: ${token}'
+               """,
+        returnStdout: true
+    ).trim()
 
-        def httpCode = raw.substring(raw.length() - 3)
-        def response = raw.substring(0, raw.length() - 3)
+    def httpCode = raw.substring(raw.length() - 3)
+    def response = raw.substring(0, raw.length() - 3)
 
-        if (httpCode in ['200', '202', '204']) {
-            echo "✅ 远程资源删除成功! 路径: ${remotePath}，响应: ${response}"
-        } else {
-            error "❌ 远程资源删除失败\n请求: DELETE ${deleteUrl}\nHTTP状态码: ${httpCode}\n响应: ${response}"
-        }
-
-    } catch (Exception e) {
-        error "❌ 远程资源删除失败: ${e.getMessage()}"
+    if (httpCode in ['200', '202', '204']) {
+        echo "✅ 远程资源删除成功! 路径: ${remotePath}，响应: ${response}"
+    } else {
+        echo "❌ 远程资源删除失败\n请求: DELETE ${deleteUrl}\nHTTP状态码: ${httpCode}\n响应: ${response}"
     }
+
+    return httpCode
 }
 
 // ─── 工具方法 ───────────────────────────────────────────
