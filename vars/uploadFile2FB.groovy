@@ -18,7 +18,7 @@ def call(Map args) {
 
     def fbUrl     = args.url.replaceAll(/\/+$/, '')
     def localFile = args.file
-    def remoteDir = args.remoteDir ?: '/'
+    def remoteDir = normalizePath(args.remoteDir ?: '/')
     def credentialsId = args.credentialsId
 
     // 验证本地文件是否存在
@@ -90,7 +90,7 @@ private def getAuthToken(String fbUrl, String username, String password) {
     def response = raw.substring(0, raw.length() - 3)
 
     if (httpCode != '200') {
-        error "❌ 登录失败 (HTTP ${httpCode})"
+        error "❌ 登录失败\n请求: POST ${fbUrl}/api/login\nHTTP状态码: ${httpCode}\n响应: ${response}"
     }
 
     echo "✅ 认证令牌获取成功"
@@ -115,23 +115,23 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
         // 直接上传文件到 /api/resources 端点
         def uploadUrl = "${fbUrl}/api/resources${targetPath}?override=true"
 
-        def result = sh(
+        def raw = sh(
             script: """#!/bin/sh
                        set +x
-                       HTTP_CODE=\$(curl -k -s -w "%{http_code}" -X POST '${uploadUrl}' \\
+                       curl -k -s -w "%{http_code}" -X POST '${uploadUrl}' \\
                             -H 'x-auth: ${token}' \\
-                            -F 'file=@${localFile}')
-                       echo "\$HTTP_CODE"
+                            -F 'file=@${localFile}'
                    """,
             returnStdout: true
         ).trim()
 
-        def httpCode = result.substring(result.length() - 3)
+        def httpCode = raw.substring(raw.length() - 3)
+        def response = raw.substring(0, raw.length() - 3)
 
         if (httpCode in ['200', '201', '204']) {
             echo "✅ 文件上传成功!"
         } else {
-            error "❌ 文件上传失败 (HTTP ${httpCode})"
+            error "❌ 文件上传失败\n请求: POST ${uploadUrl}\nHTTP状态码: ${httpCode}\n响应: ${response}"
         }
 
     } catch (Exception e) {
@@ -144,4 +144,20 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
  */
 private def getFileName(String filePath) {
     return filePath.tokenize('/')[-1]
+}
+
+/**
+ * 规范化路径：去除多余的斜杠
+ * 例如: "//path//to//dir//" -> "/path/to/dir"
+ *       "/" -> "/"
+ */
+private def normalizePath(String path) {
+    def normalized = path.replaceAll(/\/+/, '/')
+    if (!normalized.startsWith('/')) {
+        normalized = '/' + normalized
+    }
+    if (normalized.length() > 1 && normalized.endsWith('/')) {
+        normalized = normalized.substring(0, normalized.length() - 1)
+    }
+    return normalized
 }
