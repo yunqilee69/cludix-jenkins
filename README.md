@@ -1,14 +1,14 @@
-# FileBrowser 文件上传工具
+# FileBrowser Jenkins 共享库
 
-这是一个用于 Jenkins 的共享库函数，用于将文件上传到 FileBrowser 服务器。该工具支持安全的认证、自动目录创建，以及完整的错误处理和日志记录。
+用于与 FileBrowser 服务器交互的 Jenkins 共享库，支持文件上传和删除操作。提供安全的认证、自动目录创建，以及完整的错误处理和日志记录。
 
 ## 功能特性
 
 - ✅ **安全认证**: 通过 Jenkins 凭据管理系统安全处理用户名和密码
-- ✅ **自动覆盖**: 总是覆盖已存在的文件
+- ✅ **文件上传**: 上传文件到指定远程目录，自动覆盖已存在的文件
+- ✅ **文件删除**: 删除远程文件或目录（递归），拒绝删除根路径以防误操作
 - ✅ **参数验证**: 完整的输入参数验证和错误处理
-- ✅ **详细日志**: 提供清晰的上传进度和状态反馈
-- ✅ **错误处理**: 完善的异常捕获和错误报告
+- ✅ **详细日志**: 提供清晰的操作进度和状态反馈
 - ✅ **安全性**: 敏感信息（密码、token）不会输出到日志
 
 ## 安装要求
@@ -33,32 +33,25 @@
 ### 2. 在 Jenkinsfile 中使用
 
 ```groovy
-// 引入共享库
 @Library('your-shared-library-name') _
 
 pipeline {
     agent any
 
     stages {
-        stage('Upload to FileBrowser') {
+        stage('Deploy') {
             steps {
                 script {
-                    // 基本用法
-                    uploadFile2FB url: 'http://filebrowser.example.com',
-                                file: 'path/to/local/file.txt',
-                                credentialsId: 'filebrowser-creds'
+                    // 上传文件
+                    filebrowser.upload url: 'https://filebrowser.example.com',
+                                       file: 'build/output.zip',
+                                       remoteDir: '/uploads/releases',
+                                       credentialsId: 'filebrowser-creds'
 
-                    // 指定远程目录
-                    uploadFile2FB url: 'https://filebrowser.example.com',
-                                file: 'build/output.zip',
-                                remoteDir: '/uploads/releases',
-                                credentialsId: 'filebrowser-creds'
-
-                    // 使用其他凭据
-                    uploadFile2FB url: 'http://filebrowser.example.com',
-                                file: 'docs/manual.pdf',
-                                remoteDir: '/documentation',
-                                credentialsId: 'custom-fb-credentials'
+                    // 删除旧版本
+                    filebrowser.delete url: 'https://filebrowser.example.com',
+                                       path: '/uploads/releases/old-output.zip',
+                                       credentialsId: 'filebrowser-creds'
                 }
             }
         }
@@ -66,7 +59,11 @@ pipeline {
 }
 ```
 
-## 参数说明
+## API 说明
+
+### filebrowser.upload
+
+上传本地文件到 FileBrowser 服务器。
 
 | 参数名 | 类型 | 必填 | 默认值 | 说明 |
 |--------|------|------|--------|------|
@@ -75,32 +72,48 @@ pipeline {
 | `remoteDir` | String | ❌ | `/` | 远程目录路径 |
 | `credentialsId` | String | ✅ | - | Jenkins 凭据 ID |
 
+### filebrowser.delete
+
+删除 FileBrowser 服务器上的远程文件或目录（递归删除）。
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `url` | String | ✅ | - | FileBrowser 服务器地址，以 `http://` 或 `https://` 开头 |
+| `path` | String | ✅ | - | 远程文件/目录完整路径，不可为 `/` |
+| `credentialsId` | String | ✅ | - | Jenkins 凭据 ID |
+
 ## 使用示例
 
 ### 示例 1: 基本文件上传
 ```groovy
-uploadFile2FB url: 'http://filebrowser.company.com',
-            file: 'target/application.jar',
-            credentialsId: 'filebrowser-creds'
+filebrowser.upload url: 'http://filebrowser.company.com',
+                   file: 'target/application.jar',
+                   credentialsId: 'filebrowser-creds'
 ```
 
 ### 示例 2: 上传到指定目录
 ```groovy
-uploadFile2FB url: 'https://files.company.com',
-            file: 'dist/bundle.tar.gz',
-            remoteDir: '/deployments/production',
-            credentialsId: 'filebrowser-creds'
+filebrowser.upload url: 'https://files.company.com',
+                   file: 'dist/bundle.tar.gz',
+                   remoteDir: '/deployments/production',
+                   credentialsId: 'filebrowser-creds'
 ```
 
-### 示例 3: 使用自定义凭据
+### 示例 3: 删除远程文件
 ```groovy
-uploadFile2FB url: 'http://filebrowser.company.com',
-            file: 'backup/database.sql',
-            remoteDir: '/backups/daily',
-            credentialsId: 'filebrowser-backup-creds'
+filebrowser.delete url: 'https://files.company.com',
+                   path: '/deployments/production/old-bundle.tar.gz',
+                   credentialsId: 'filebrowser-creds'
 ```
 
-### 示例 4: 在 CI/CD 流水线中使用
+### 示例 4: 删除远程目录
+```groovy
+filebrowser.delete url: 'https://files.company.com',
+                   path: '/deployments/staging',
+                   credentialsId: 'filebrowser-creds'
+```
+
+### 示例 5: CI/CD 流水线
 ```groovy
 pipeline {
     agent any
@@ -112,20 +125,24 @@ pipeline {
             }
         }
 
-        stage('Upload Artifacts') {
+        stage('Deploy') {
             steps {
                 script {
-                    // 上传构建产物
-                    uploadFile2FB url: 'https://artifacts.company.com',
-                                file: 'dist/index.html',
-                                remoteDir: '/website/latest',
-                                credentialsId: 'filebrowser-creds'
+                    // 删除旧版本
+                    filebrowser.delete url: 'https://artifacts.company.com',
+                                       path: '/website/latest',
+                                       credentialsId: 'filebrowser-creds'
 
-                    // 上传源码映射
-                    uploadFile2FB url: 'https://artifacts.company.com',
-                                file: 'dist/main.js.map',
-                                remoteDir: '/website/latest',
-                                credentialsId: 'filebrowser-creds'
+                    // 上传构建产物
+                    filebrowser.upload url: 'https://artifacts.company.com',
+                                       file: 'dist/index.html',
+                                       remoteDir: '/website/latest',
+                                       credentialsId: 'filebrowser-creds'
+
+                    filebrowser.upload url: 'https://artifacts.company.com',
+                                       file: 'dist/main.js.map',
+                                       remoteDir: '/website/latest',
+                                       credentialsId: 'filebrowser-creds'
                 }
             }
         }
@@ -135,22 +152,29 @@ pipeline {
 
 ## 输出示例
 
-执行成功时的日志输出：
+### 上传成功
 ```
 准备上传文件: target/app.jar -> /deployments
 FileBrowser 服务器: https://files.company.com
 🔐 正在获取认证令牌...
 ✅ 认证令牌获取成功
 📁 开始上传文件: app.jar
-📤 上传到: https://files.company.com/api/resources/deployments/app.jar?override=true
 ✅ 文件上传成功!
-🔗 访问路径: https://files.company.com/files/deployments/app.jar
 文件上传成功!
 ```
 
-## 错误处理
+### 删除成功
+```
+准备删除远程路径: /deployments/old-app.jar
+FileBrowser 服务器: https://files.company.com
+🔐 正在获取认证令牌...
+✅ 认证令牌获取成功
+🗑️ 开始删除远程资源: /deployments/old-app.jar
+✅ 远程资源删除成功! 路径: /deployments/old-app.jar
+远程资源删除成功!
+```
 
-该工具包含完整的错误处理机制：
+## 错误处理
 
 ### 常见错误类型
 
@@ -158,6 +182,7 @@ FileBrowser 服务器: https://files.company.com
    ```
    ❌ FileBrowser URL 必填
    ❌ 本地文件路径必填
+   ❌ 远程路径必填
    ❌ Jenkins 凭据 ID 必填
    ❌ FileBrowser URL 格式无效，应以 http:// 或 https:// 开头
    ```
@@ -167,14 +192,20 @@ FileBrowser 服务器: https://files.company.com
    ❌ 本地文件不存在: target/nonexistent.txt
    ```
 
-3. **认证失败**
+3. **删除根路径保护**
    ```
-   ❌ FileBrowser 登录失败 (HTTP 401)
+   ❌ 不允许删除根路径 /
    ```
 
-4. **上传失败**
+4. **认证失败**
+   ```
+   ❌ 登录失败 (HTTP 401)
+   ```
+
+5. **操作失败**
    ```
    ❌ 文件上传失败 (HTTP 500)
+   ❌ 远程资源删除失败 (HTTP 404)
    ```
 
 ## 安全注意事项
@@ -185,6 +216,7 @@ FileBrowser 服务器: https://files.company.com
 
 2. **路径安全**:
    - 验证 URL 格式，防止注入攻击
+   - 删除操作拒绝根路径 `/`，防止误删全部数据
    - 文件路径通过 Jenkins 内置安全机制处理
 
 3. **网络安全**:
@@ -204,6 +236,16 @@ FileBrowser 服务器: https://files.company.com
 - 检查 FileBrowser 服务器地址是否正确
 - 验证 Jenkins 凭据配置是否正确
 - 确认用户名密码是否正确
+
+### 问题: 删除失败，提示 404
+**解决方案**:
+- 确认远程路径是否正确
+- 检查文件是否已被删除
+
+### 问题: 删除失败，提示 403
+**解决方案**:
+- 确认用户是否拥有删除权限
+- 确认不是在尝试删除根路径
 
 ### 问题: 证书验证失败
 **解决方案**:
