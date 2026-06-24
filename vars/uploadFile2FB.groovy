@@ -93,7 +93,7 @@ private def getAuthToken(String fbUrl, String username, String password) {
         error "❌ 登录失败\n请求: POST ${fbUrl}/api/login\nHTTP状态码: ${httpCode}\n响应: ${response}"
     }
 
-    echo "✅ 认证令牌获取成功"
+    echo "✅ 认证令牌获取成功，响应: ${response}"
     return response
 }
 
@@ -129,7 +129,7 @@ private def uploadFile(String fbUrl, String token, String localFile, String remo
         def response = raw.substring(0, raw.length() - 3)
 
         if (httpCode in ['200', '201', '204']) {
-            echo "✅ 文件上传成功!"
+            echo "✅ 文件上传成功! 响应: ${response}"
         } else {
             error "❌ 文件上传失败\n请求: POST ${uploadUrl}\nHTTP状态码: ${httpCode}\n响应: ${response}"
         }
