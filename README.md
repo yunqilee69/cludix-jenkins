@@ -72,6 +72,8 @@ pipeline {
 | `remoteDir` | String | ❌ | `/` | 远程目录路径 |
 | `credentialsId` | String | ✅ | - | Jenkins 凭据 ID |
 
+**返回值**: `int` — HTTP 状态码。成功时返回 `200`/`201`/`204`，失败时返回实际状态码（如 `401`、`403`、`500`）。
+
 ### filebrowser.delete
 
 删除 FileBrowser 服务器上的远程文件或目录（递归删除）。
@@ -81,6 +83,8 @@ pipeline {
 | `url` | String | ✅ | - | FileBrowser 服务器地址，以 `http://` 或 `https://` 开头 |
 | `path` | String | ✅ | - | 远程文件/目录完整路径，不可为 `/` |
 | `credentialsId` | String | ✅ | - | Jenkins 凭据 ID |
+
+**返回值**: `int` — HTTP 状态码。成功时返回 `200`/`202`/`204`，失败时返回实际状态码（如 `401`、`403`、`404`）。
 
 ## 使用示例
 
@@ -113,7 +117,21 @@ filebrowser.delete url: 'https://files.company.com',
                    credentialsId: 'filebrowser-creds'
 ```
 
-### 示例 5: CI/CD 流水线
+### 示例 5: 根据返回值判断操作结果
+```groovy
+def code = filebrowser.upload url: 'https://files.company.com',
+                              file: 'dist/app.zip',
+                              remoteDir: '/releases',
+                              credentialsId: 'filebrowser-creds'
+
+if (code in [200, 201, 204]) {
+    echo "上传成功 (HTTP ${code})"
+} else {
+    error "上传失败 (HTTP ${code})"
+}
+```
+
+### 示例 6: CI/CD 流水线
 ```groovy
 pipeline {
     agent any
